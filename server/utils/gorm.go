@@ -2,6 +2,7 @@ package utils
 
 import (
 	"blog/config"
+	"blog/model"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
