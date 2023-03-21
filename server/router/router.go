@@ -1,8 +1,12 @@
 package router
 
 import (
+	"blog/config"
 	"blog/dao"
 	"blog/utils"
+	"log"
+	"net/http"
+	"time"
 )
 
 // InitGlobalVariable 初始化全局变量
@@ -17,4 +21,16 @@ func InitGlobalVariable() {
 	utils.InitRedis()
 	// 初始化 Casbin
 	utils.InitCasbin(dao.DB)
+}
+
+// 后台服务
+func BackendServer() *http.Server {
+	backPort := config.Cfg.Server.BackPort
+	log.Printf("后台服务启动于 %s 端口", backPort)
+	return &http.Server{
+		Addr:         backPort,
+		Handler:      BackRouter(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
 }
