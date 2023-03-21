@@ -66,3 +66,12 @@ const (
 	// code = 7000... 页面模块错误
 	ERROR_PAGE_NAME_EXIST = 7001
 )
+
+var codeMsg = map[int]string{
+	OK:   "OK",
+	FAIL: "FAIL",
+}
+
+func GetMsg(code int) string {
+	return codeMsg[code]
+}
