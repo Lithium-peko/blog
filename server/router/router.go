@@ -15,4 +15,6 @@ func InitGlobalVariable() {
 	dao.DB = utils.InitMySQLDB()
 	// 初始化 Redis
 	utils.InitRedis()
+	// 初始化 Casbin
+	utils.InitCasbin(dao.DB)
 }
