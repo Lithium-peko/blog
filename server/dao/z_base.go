@@ -47,6 +47,14 @@ func UpdatesMap[T any](data *T, maps map[string]any, query string, args ...any) 
 	}
 }
 
+// [批量]更新: 结构体的属性就是要更新的字段 (结构体不更新零值), 通过条件可以实现[单行]更新
+func Updates[T any](data *T, query string, args ...any) {
+	err := DB.Model(&data).Where(query, args...).Updates(&data).Error
+	if err != nil {
+		panic(err)
+	}
+}
+
 // 数据列表
 func List[T any](data T, slt, order, query string, args ...any) T {
 	db := DB.Model(&data).Select(slt).Order(order)
