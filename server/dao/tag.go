@@ -32,7 +32,7 @@ func (*Tag) GetOption() []resp.OptionVo {
 }
 
 // 根据 [文章id] 获取 [标签名称列表]
-func (*Tag) GetTagNameByArtId(id int) []string {
+func (*Tag) GetTagNamesByArtId(id int) []string {
 	list := make([]string, 0)
 	DB.Table("tag").
 		Joins("LEFT JOIN article_tag ON tag.id = article_tag.tag_id").
