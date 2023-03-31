@@ -24,7 +24,7 @@ type Server struct {
 
 type JWT struct {
 	Secret string // JWT 签名
-	Expire string // 过期时间
+	Expire int64  // 过期时间
 	Issuer string // 签发者
 }
 
