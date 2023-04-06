@@ -9,11 +9,14 @@ import (
 	"blog/model/resp"
 	"blog/utils"
 	"blog/utils/r"
-	"github.com/gin-contrib/sessions"
+	"fmt"
 	"go.uber.org/zap"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -102,6 +105,168 @@ func (*User) Register(req req.Register) (code int) {
 		LoginType:     1,
 		LastLoginTime: time.Now(), // 注册时会更新 "上次登陆时间"
 	})
+	return r.OK
+}
+
+// 更新用户邮箱信息
+func (*User) UpdateEmail(userInfoId int, req req.UpdateEmail) (code int) {
+	// 检查验证码是否正确
+	if req.Code != utils.Redis.GetVal(KEY_CODE+req.Email) {
+		return r.ERROR_VERIFICATION_CODE
+	}
+	return r.OK
+}
+
+// 查询当前在线用户
+// TODO: 分页 + 条件搜索
+func (*User) GetOnlineList(req req.PageQuery) resp.PageResult[[]resp.UserOnline] {
+	onlineList := make([]resp.UserOnline, 0)
+
+	keys := utils.Redis.Keys(KEY_USER + "*")
+	for _, key := range keys {
+		var sessionInfo dto.SessionInfo
+		utils.Json.Unmarshal(utils.Redis.GetVal(key), &sessionInfo)
+
+		// 查询关键字不为空, 且不满足查询条件
+		if req.Keyword != "" && !strings.Contains(sessionInfo.Nickname, req.Keyword) {
+			continue
+		}
+
+		onlineUser := utils.CopyProperties[resp.UserOnline](sessionInfo)
+		onlineUser.UserIndoId = sessionInfo.UserInfoId // *
+		onlineList = append(onlineList, onlineUser)
+	}
+
+	// 根据上次登录时间进行排序
+	sort.Slice(onlineList, func(i, j int) bool {
+		return onlineList[i].LastLoginTime.Unix() > onlineList[j].LastLoginTime.Unix()
+	})
+	return resp.PageResult[[]resp.UserOnline]{
+		Total: int64(len(keys)),
+		List:  onlineList,
+	}
+}
+
+// 强制用户离线
+func (*User) ForceOffline(req req.ForceOfflineUser) (code int) {
+	uuid := utils.Encryptor.MD5(req.IpAddress + req.Browser + req.OS)
+	var sessionInfo dto.SessionInfo
+	utils.Json.Unmarshal(utils.Redis.GetVal(KEY_USER+uuid), &sessionInfo)
+	sessionInfo.IsOffline = 1 // *
+	utils.Redis.Del(KEY_USER + uuid)
+	// ? 这里设置强制离线后 redis 中存储的 delete:xxx 时间和 Token 过期时间一致
+	utils.Redis.Set(KEY_DELETE+uuid, utils.Json.Marshal(sessionInfo), time.Duration(config.Cfg.JWT.Expire)*time.Hour)
+	return r.OK
+}
+
+func (*User) UpdateCurrent(current req.UpdateCurrentUser) (code int) {
+	user := utils.CopyProperties[model.UserInfo](current)
+	dao.Update(&user, "nickname", "intro", "website", "avatar", "email")
+	return r.OK
+}
+
+// TODO: 优化
+func (*User) GetInfo(id int) resp.UserInfoVO {
+	var userInfo model.UserInfo
+	dao.GetOne(&userInfo, "id", id)
+	data := utils.CopyProperties[resp.UserInfoVO](userInfo)
+	data.ArticleLikeSet = utils.Redis.SMembers(KEY_ARTICLE_USER_LIKE_SET + strconv.Itoa(id))
+	data.CommentLikeSet = utils.Redis.SMembers(KEY_COMMENT_USER_LIKE_SET + strconv.Itoa(id))
+	return data
+}
+
+func (*User) GetList(req req.GetUsers) resp.PageResult[[]resp.UserVO] {
+	count := userDao.GetCount(req)
+	list := userDao.GetList(req)
+	return resp.PageResult[[]resp.UserVO]{
+		PageSize: req.PageSize,
+		PageNum:  req.PageNum,
+		Total:    count,
+		List:     list,
+	}
+}
+
+func (*User) Update(req req.UpdateUser) int {
+	userInfo := model.UserInfo{
+		Universal: model.Universal{ID: req.UserInfoId},
+		Nickname:  req.Nickname,
+	}
+	dao.Update(&userInfo)
+	// 清空 user_role 关系
+	dao.Delete(model.UserRole{}, "user_id = ?", req.UserInfoId)
+	// 要更新的 user_role 列表
+	var userRoles []model.UserRole
+	for _, id := range req.RoleIds {
+		userRoles = append(userRoles, model.UserRole{
+			RoleId: id,
+			UserId: req.UserInfoId,
+		})
+	}
+	dao.Create(&userRoles)
+	return r.OK
+}
+
+// 修改普通用户密码, 不需要旧密码
+func (*User) UpdatePassword(req req.UpdatePassword) int {
+	// 用户名不存在
+	if exist := checkUserExistByName(req.Username); !exist {
+		return r.ERROR_USER_NOT_EXIST
+	}
+
+	m := map[string]any{"password": utils.Encryptor.BcryptHash(req.Password)}
+	dao.UpdatesMap(&model.UserAuth{}, m, "username = ?", req.Username)
+	return r.OK
+}
+
+// 修改管理员密码, 需要旧密码
+func (*User) UpdateCurrentPassword(req req.UpdateAdminPassword, id int) int {
+	user := dao.GetOne(model.UserAuth{}, "id", id)
+	if !user.IsEmpty() && utils.Encryptor.BcryptCheck(req.OldPassword, user.Password) {
+		user.Password = utils.Encryptor.BcryptHash(req.NewPassword)
+		dao.Update(&user, "password")
+		return r.OK
+	} else {
+		return r.ERROR_OLD_PASSWORD
+	}
+}
+
+// 更新用户禁用
+func (*User) UpdateDisable(id, isDisable int) {
+	dao.UpdatesMap(&model.UserInfo{}, map[string]any{"is_disable": isDisable}, "id", id)
+}
+
+// 发送验证码
+func (*User) SendCode(email string) (code int) {
+	// 已经发送验证码且未过期
+	if utils.Redis.GetVal(KEY_CODE+email) != "" {
+		return r.ERROR_EMAIL_HAS_SEND
+	}
+
+	expireTime := config.Cfg.Captcha.ExpireTime
+	validateCode := utils.Encryptor.ValidateCode()
+	content := fmt.Sprintf(`
+		<div style="text-align:center">
+			<div>你好! 欢迎访问 lithium_peko 的个人博客! </div>
+			<div style="padding: 8px 40px 8px 50px;">
+				<p>
+					您本次的验证码为
+					<p style="font-size:75px;font-weight:blod;"> %s </p>
+					为了保证账号安全, 验证码有效期为 %d 分钟. 请确认为本人操作, 切勿向他人泄露, 感谢您的理解与使用~
+				</p>
+			</div>
+			<div>
+				<p>发送专用邮箱, 请勿回复.</p>
+			</div>
+		</div>
+`, validateCode, expireTime)
+
+	if err := utils.Email(email, "博客注册验证码", content); err != nil {
+		return r.ERROR_EMAIL_SEND
+	}
+
+	// 将验证码存储到 Redis 中
+	utils.Redis.Set(KEY_CODE+email, validateCode, time.Duration(expireTime)*time.Minute)
+	return r.OK
 }
 
 // 检查用户是否存在
