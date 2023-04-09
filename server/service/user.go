@@ -66,7 +66,7 @@ func (*User) Login(c *gin.Context, username, password string) (loginVo resp.Logi
 }
 
 // 退出登录
-func (*User) LoginOut(c *gin.Context) {
+func (*User) Logout(c *gin.Context) {
 	uuid := utils.GetFromContext[string](c, "uuid")
 	session := sessions.Default(c)
 	session.Delete(KEY_USER + uuid)
