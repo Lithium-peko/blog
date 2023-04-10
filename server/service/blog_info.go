@@ -84,7 +84,7 @@ func (*BlogInfo) GetAbout() string {
 	return utils.Redis.GetVal(KEY_ABOUT)
 }
 
-func (*BlogInfo) updateAbout(data model.About) (code int) {
+func (*BlogInfo) UpdateAbout(data model.About) (code int) {
 	utils.Redis.Set(KEY_ABOUT, data.Content, 0)
 	return r.OK
 }

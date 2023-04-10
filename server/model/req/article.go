@@ -14,7 +14,7 @@ type SaveOrUpdateArt struct {
 
 	TagNames     []string `json:"tag_names"`
 	TagIds       []uint   `json:"tag_ids"`
-	CateGoryName string   `json:"category_name"`
+	CategoryName string   `json:"category_name"`
 	CategoryId   int      `json:"category_id"`
 }
 

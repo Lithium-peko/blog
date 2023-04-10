@@ -34,3 +34,15 @@ func BackendServer() *http.Server {
 		WriteTimeout: 10 * time.Second,
 	}
 }
+
+// 前台服务
+func FrontendServer() *http.Server {
+	frontPort := config.Cfg.Server.FrontPort
+	log.Printf("前台服务启动于 %s 端口", frontPort)
+	return &http.Server{
+		Addr:         frontPort,
+		Handler:      FrontRouter(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+}

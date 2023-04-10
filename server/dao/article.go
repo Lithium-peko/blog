@@ -65,8 +65,8 @@ func (*Article) GetList(req req.GetArts) ([]resp.ArticleVO, int64) {
 }
 
 /* 前台相关 */
-func (*Article) GetFrontList(req req.GetFrontArts) ([]resp.FrontArticleDetailVO, int64) {
-	list := make([]resp.FrontArticleDetailVO, 0)
+func (*Article) GetFrontList(req req.GetFrontArts) ([]resp.FrontArticleVO, int64) {
+	list := make([]resp.FrontArticleVO, 0)
 	var total int64
 	db := DB.Table("article").
 		Select("id, title, content, img, type, is_top, created_at, category_id").

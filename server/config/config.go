@@ -47,7 +47,7 @@ type Redis struct {
 type Session struct {
 	Name   string
 	Salt   string
-	MaxAge string
+	MaxAge int
 }
 
 type Email struct {

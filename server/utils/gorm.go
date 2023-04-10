@@ -30,7 +30,7 @@ func InitSQLiteDB(dsn string) *gorm.DB {
 
 func InitMySQLDB() *gorm.DB {
 	mysqlCfg := config.Cfg.Mysql
-	dns := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&Loc=Local",
+	dns := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		mysqlCfg.Username,
 		mysqlCfg.Password,
 		mysqlCfg.Host,
